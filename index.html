@@ -1,0 +1,182 @@
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Facebook Page Lister</title>
+</head>
+
+<body>
+  
+  <h1>List Your Facebook pages</h1>
+
+<ul>
+  <li>Uses the <a href="https://developers.facebook.com/docs/javascript">Facebook Javascript SDK</a></li>
+  <li>Requires the <code>pages_show_list</code> <a href="https://developers.facebook.com/docs/facebook-login/permissions#reference-pages_show_list">permission</a></li>
+  <li><code>FB.getLoginStatus</code> used to <a href="https://developers.facebook.com/docs/reference/javascript/FB.getLoginStatus/">check if user is logged in</a></li>
+  <li><code>FB.login</code> to <a href="https://developers.facebook.com/docs/reference/javascript/FB.login/">prompt for Facebook login box</a></li>
+  <li> <code>/me/accounts</code> to <a href="https://developers.facebook.com/docs/pages/access-tokens#multiple-pages">list pages</a> and displays them in the format "<code>Name (ID)</code>"</li>
+  <li> <code>/me/permissions</code> to <a href="https://developers.facebook.com/docs/graph-api/reference/user/permissions/#Reading">read permissions on the user</a> and displays them in the format "<code>Name (granted/declined)</code>"</li>
+</ul>
+
+  
+
+
+  <nav>
+    <a href="#" id="fbLogin">[Login]</a> 
+    <a href="#" id="fbLogout">[Logout]</a> 
+    <a href="#" id="fbListPages">[List my pages]</a> 
+    <a href="#" id="fbCheckPermissions">[Check permissions]</a> 
+  </nav>
+  <h3 id="fbstatus"></h3>
+  <ol id="fbList"></ol>
+
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+  <script>
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId            : '2138289993106185',
+        autoLogAppEvents : true,
+        xfbml            : true,
+        version          : 'v3.1'
+      });
+      fbUpdateUI(false);
+      fbCheckLoginState();
+    };
+
+    (function(d, s, id){
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) {return;}
+      js = d.createElement(s); js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
+
+    var FBtoken = null;
+
+    function fbLogin(){
+      FB.login(function(response) {
+        if (response.authResponse) {
+          fbCheckLoginState();
+        } else {
+          fbUpdateStatus('User cancelled login or did not fully authorize.');
+        }
+      }, {scope: 'pages_show_list'});
+    }
+    function fbUpdateUI(loggedIn){
+      $("#fbLogin").toggle(!loggedIn);
+      $("#fbCheckPermissions").toggle(loggedIn);
+      $("#fbListPages").toggle(loggedIn);
+      $("#fbLogout").toggle(loggedIn);
+    }
+    function fbLogout(){
+      fbUpdateStatus("Logging out...");
+      FB.logout(function(response) {
+        fbCheckLoginState();
+      });
+    }
+    function fbCheckLoginState() {
+      fbUpdateStatus("Checking FB login status...");
+      FB.getLoginStatus(function(response) {
+        fbStatusChangeCallback(response);
+      });
+    }
+    function fbCheckPermissions(){
+      fbListClear();
+      fbUpdateStatus("Checking your permissions...");
+      FB.api('/me/permissions?token=' + FBtoken, function(response) {
+        console.log('Your permissions', response);
+        for(var i = 0; i < response.data.length; i++){
+          var item = response.data[i];
+          var data = `${item.permission} (${[item.status]})`;
+          fbListAdd(data);
+        }
+        fbUpdateStatus("Permission listing done");
+      });
+      }
+    function fbStatusChangeCallback(response) {
+      console.log('fbStatusChangeCallback', response);
+      if(response.authResponse && response.authResponse.accessToken){
+        FBtoken = response.authResponse.accessToken;
+      }
+      if (response.status === 'connected') {
+        fbUpdateStatus("You're logged into Facebook");
+        fbUpdateUI(true);
+        fbGetmydetails();
+      } else {
+        fbUpdateUI(false);
+        fbUpdateStatus('Please log into this app.');
+      }
+    }
+    function fbGetmydetails(){
+      fbUpdateStatus("Getting your details...");
+      FB.api('/me', function(response) {
+        fbListpages();
+      });
+    }
+    function fbListpages(link){
+      if(!link) {
+          fbUpdateStatus("Listing your pages...");
+          fbListClear();
+          link = '/me/accounts?token='+FBtoken;
+        }
+      FB.api(link, function(response) {
+        if(fbhaserror(response)) return;
+        console.log('Your pages ', response);
+        for(var i = 0; i < response.data.length; i++){
+          var item = response.data[i];
+          var data = $("<span></span>");
+          var a = $("<a target='_blank'></a>").attr("href", `https://facebook.com/${[item.id]}`).text(item.name);
+          data.append(a);
+          var label = $("<span></span>").text(` (${item.id})`);
+          data.append(label);
+          fbListAddelement(data);
+        }
+        if(response.paging && response.paging.next){
+          fbListpages(response.paging.next);
+        }
+        else {
+          fbUpdateStatus("Pages listing done");
+        }
+         });
+      }
+    function fbUpdateStatus(msg){
+      $("#fbstatus").text(msg);
+    }
+
+    function fbListClear(){
+      $("#fbList").empty();
+    }
+      function fbListAdd(data){
+        var element = $("<li></li>").html(data);
+        $("#fbList").append(element); 
+      }
+      function fbListAddelement(el){
+        var element = $("<li></li>").append(el);
+        $("#fbList").append(element); 
+      }
+    function fbhaserror(response){
+      if(response.error && response.error.message){
+        fbUpdateStatus("ERROR!: " + response.error.message);
+          return true;
+        }
+        return false; 
+    }
+    
+    $("#fbLogin").click(function(e){
+      e.preventDefault();
+      fbLogin();
+    });
+    $("#fbLogout").click(function(e){
+      e.preventDefault();
+      fbLogout();
+    });
+    $("#fbListPages").click(function(e){
+      e.preventDefault();
+      fbListpages();
+    });
+    $("#fbCheckPermissions").click(function(e){
+      e.preventDefault();
+      fbCheckPermissions();
+    });
+  </script>
+</body>
+</html>
