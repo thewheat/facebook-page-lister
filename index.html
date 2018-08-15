@@ -51,6 +51,7 @@
     }(document, 'script', 'facebook-jssdk'));
 
     var FBtoken = null;
+    var FBrequiredPermission = "pages_show_list";
 
     function fbLogin(){
       FB.login(function(response) {
@@ -59,14 +60,14 @@
         } else {
           fbUpdateStatus('User cancelled login or did not fully authorize.');
         }
-      }, {scope: 'pages_show_list'});
+      }, {scope: FBrequiredPermission});
     }
     function fbUpdateUI(loggedIn){
-      $("#fbLogin").toggle(!loggedIn);
       $("#fbCheckPermissions").toggle(loggedIn);
       $("#fbListPages").toggle(loggedIn);
       $("#fbLogout").toggle(loggedIn);
     }
+
     function fbLogout(){
       fbUpdateStatus("Logging out...");
       FB.logout(function(response) {
@@ -84,12 +85,21 @@
       fbUpdateStatus("Checking your permissions...");
       FB.api('/me/permissions?token=' + FBtoken, function(response) {
         console.log('Your permissions', response);
+        var hasRequiredPermission = false;
         for(var i = 0; i < response.data.length; i++){
           var item = response.data[i];
           var data = `${item.permission} (${[item.status]})`;
           fbListAdd(data);
+          if(FBrequiredPermission == item.permission && "granted" == item.status) {
+            hasRequiredPermission = true;
+          }
         }
-        fbUpdateStatus("Permission listing done");
+        if(hasRequiredPermission){
+          fbUpdateStatus("Permission listing done");
+        }
+        else{
+          fbUpdateStatus("Permission listing done but you have not accepted the necessary permission please login again to update it");
+        }
       });
       }
     function fbStatusChangeCallback(response) {
